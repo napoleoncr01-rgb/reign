@@ -1,0 +1,10 @@
+// Pour publier une mise à jour : change le numéro de version ci-dessous.
+const C='reign-v2',A=['./','index.html','style.css','app.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/apple-touch.png'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(A)));self.skipWaiting()});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>clients.claim()))});
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(n=>{const cp=n.clone();caches.open(C).then(c=>c.put(e.request,cp));return n}).catch(()=>caches.match('index.html'))))});
+
+// Push « réveil » sans contenu : le texte vient des rappels enregistrés dans l'appli (IndexedDB), le plus proche de l'heure actuelle.
+const rems=()=>new Promise(ok=>{const q=indexedDB.open('reign',1);q.onupgradeneeded=()=>q.transaction.abort();q.onerror=()=>ok(null);q.onsuccess=()=>{try{const g=q.result.transaction('kv').objectStore('kv').get('state');g.onsuccess=()=>ok(g.result?.set?.rem?.list||null);g.onerror=()=>ok(null)}catch{ok(null)}}});
+self.addEventListener('push',e=>e.waitUntil((async()=>{const l=await rems()||[],p=new Intl.DateTimeFormat('fr-FR',{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit'}).format(new Date()).split(':'),n=+p[0]*60+ +p[1];let b=null,bd=16;for(const r of l){if(!r.on)continue;const[a,c]=r.t.split(':'),d=Math.abs(n-(+a*60+ +c)),dd=Math.min(d,1440-d);if(dd<bd){bd=dd;b=r}}return self.registration.showNotification('REIGN',{body:b?b.msg:'Notification de test reçue ✓',icon:'icons/icon-192.png',tag:b?b.id:'test',data:b?b.id:''})})()));
+self.addEventListener('notificationclick',e=>{e.notification.close();const id=e.notification.data||'';e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(cs=>{if(cs.length){cs[0].postMessage(id);return cs[0].focus()}return clients.openWindow('./#'+id)}))});
